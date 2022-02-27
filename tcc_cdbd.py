@@ -6,17 +6,17 @@ import plotly.graph_objects as go
 #from plotly.subplots import make_subplots
 
 
-##################### FUNÇÕES USADAS NA ETAPA S1 - PROCESSAMENTO E TRATAMENTO DOS DADOS
-
-# informações sobre tipo de features, contagem de valores, valores únicos e valores nulos ...
 def df_info(df):
     """
-    Função para exibição de informações relativas ao dataframe <df>:
-    - column type
-    - count values
-    - unique values
-    - null values
-    - null values (%)
+    Função para exibição de informações relativas ao dataframe <df>.
+    Parâmetros:
+    - column type     -> tipo de dado da feature (coluna)
+    - count values    -> quantidade de valores na coluna
+    - unique values   -> valores únicos da coluna
+    - null values     -> valores nulos da coluna
+    - null values (%) -> percentual de valores nulos na coluna
+
+    Retorno: DataFrame com as informações dos parâmetros.
     """
 
     info=pd.DataFrame(df.dtypes).T.rename(index={0:'column type'})
@@ -24,36 +24,34 @@ def df_info(df):
     info=info.append(pd.DataFrame(df.nunique()).T.rename(index={0:'unique values'}))
     info=info.append(pd.DataFrame(df.isnull().sum()).T.rename(index={0:'null values'}))
     info=info.append(pd.DataFrame(df.isnull().sum()/df.shape[0]*100).T.rename(index={0:'null values (%)'}))
+
     return info
 
 def mark_invalid_plate(df, column):
     """
-    Esta função retorna o índice dos registros em que as placas são inválidas considerando os formatos abaixo. 
+    Esta função retorna os índices dos registros cujas placas são inválidas, considerando os formatos abaixo. 
 
-    df - dataframe em análise.
+    Parâmetros:
+    df     - dataframe em análise.
     column - coluna com dado da placa.
 
-    No final, cada linha será tratada com base neste índice e parâmetro <column>.
-    -PLACA_CAVALO-haverá remoção do respectivo registro;
-    -PLACA_CARRETA - será atribuído valor 'ERROR', mantendo o registro.
-
-    Formato placas:
-    ABC1234 BR antiga = UR atual
-    ABC123  PY antiga = AR
-    ABC123  AR antiga = PY
+    Explicação - formato placas:
+    ABC1234 BR antiga
+    ABC123  PY antiga = AR antiga
     
     <MERCOSUL>
     ABCD123 PY
     ABC1A23 BR
     AB123CD AR
-    *ABC1234 UR = BR
     
-    VALIDAR PLACA CONFORME O PAÍS - 
-    #pat_obj = re.compile('^[A-Z]{2}[0-9]{3}[A-Z]{2}$') # 'AB123CD'
-    #pat_obj = re.compile('^[A-Z]{3}[0-9]{4}$') # 'ABC1234'
-    #pat_obj = re.compile('^[A-Z]{3}[0-9]{3}$') # 'ABC123'
-    #pat_obj = re.compile('^[A-Z]{3}\d\D[0-9]{2}$') # 'ABC1A23'
-    #pat_obj = re.compile('^[A-Z]{4}[0-9]{3}$') # 'ABCD123'
+    Validar placas - padrões (formatos):
+    AB123CD -> '^[A-Z]{2}[0-9]{3}[A-Z]{2}$'
+    ABC1234 -> '^[A-Z]{3}[0-9]{4}$'
+    ABC123  -> '^[A-Z]{3}[0-9]{3}$'
+    ABC1A23 -> '^[A-Z]{3}\d\D[0-9]{2}$'
+    ABCD123 -> '^[A-Z]{4}[0-9]{3}$'
+    
+    Retorno: lista com índices dos registros com placa inválida.
     """
     
     #regex para cada placa por país
@@ -87,9 +85,12 @@ def check_search(df,string,column):
     """
     Função usada para verificar/ajustar o score de cada match em <replace_matches> 
 
+    Parâmetros:
     df      - dataframe para verificação.
     string  - palavra usada para pesquisa e cálculo do score aplicada à coluna <column>
     column  - coluna na qual será verificada a string <string>
+
+    Retorno: lista de tuplas contendo a string mais próxima de <string> com o score.
     """
 
     search = string
@@ -101,22 +102,23 @@ def check_search(df,string,column):
     # obtém os mais próximos que combinam com <list_check...>
     matches = fuzzywuzzy.process.extract(search, col, limit=2000,
                                      scorer=fuzzywuzzy.fuzz.token_sort_ratio)
-    # exibe matches
-#    print('TOTAL MATCHES:{} \n\nMATCHES:'.format(len(matches)))
+
     return matches
 
 def replace_matches(df, df_temp, column, string_to_match, string_country, min_ratio):
     """
-    Função para atribuir à coluna <ORIGEM_PAIS> ou <DESTINO_PAIS> o código do país.
+    Função para atribuir à coluna <ORIGEM_PAIS> ou <DESTINO_PAIS> o código do país (BR, PY)
     cujo match com a string fornecida estão acima do valor passado para <min_ratio>
-    
+
+    Parâmetros:
     df              - dataframe no qual haverá atribuição do código do país.
     df_temp         - dataframe usado temporariamente para que a execução do código seja mais rápida.
     column          - coluna com os dados sobre os quais será aplicada a pesquisa de <string_to_match> 
     string_to_match - palavra usada para pesquisa e cálculo do score aplicada à coluna <column>
     string_country  - código de duas letras referente ao país. Ex: BR, PY, AR, UR
     min_ratio       - valor mínimo do score a partir do qual será feita a seleção dos melhores matches.
-
+    
+    Retorno: None.
     """
 
     # obtém uma lista de strings únicas na coluna desejada
@@ -143,15 +145,19 @@ def replace_matches(df, df_temp, column, string_to_match, string_country, min_ra
 
 def show_days_month(df,column,list_month):
     """
-    Exibe num dataframe <df_return> para cada mês o número de dias únicos (Ex:7: 31, 8: 31, 9: 30, 10: 27 - se tiver faltando 3 dias)
-    Permite verificar se ficou faltando coletar algum dia do mês ou se realmente não existe determinado dia em <column> no mês específico.
+    Exibe num dataframe <df_return> para cada mês o número de dias únicos encontrados em <column> 
+    - Exemplo (mês): 7: 31, 8: 31, 9: 30, 10: 27 (27 - se tiver faltando 3 dias, nesse caso são exibidos os dias faltantes)
+    Isso permite verificar se ficou faltando coletar algum dia do mês ou se realmente não existe determinado dia em <column> no mês específico.
 
+    Parâmetros:
     df          - dataframe de verificação dos dias do mês. 
     column      - coluna de datas onde será feita a verificação. Deve ser do tipo <datetime>
     list_month  - lista contendo os meses (inteiro de 1 a 12)
 
     Exemplo: exibição referente ao dataframe <df>, na coluna <column>, nos meses em <list_month>:
     show_days_month(mic,'DATA_PASSAGEM',[7,8,9,10])
+    
+    Retorno: DataFrame com os detalhes acima mencionados.
     """
 
     t_dias = []
@@ -186,10 +192,13 @@ def show_days_month(df,column,list_month):
         
 def char_remove(df,column):
     """
-    Verifica se há em column caracter especial ou indevido.
+    Verifica se há em column caracter especial ou indevido, removendo-os.
     
+    Parâmetros:
     df - dataframe a ser executada a verificação
     column - coluna que será verificada a ocorrência de caracter especial ou indevido
+    
+    Retorno: None.
     """
     count = df[column][df[column].str.contains('[''-\?\*\+\$\.\)\(\' !@%&_"\"/:;,"´~]')].count()
 
@@ -199,15 +208,19 @@ def char_remove(df,column):
         
 
 #S1_1
-def search_idx_plates(list_plates, df_check,col_check):
+def search_idx_plates(list_plates, df_pcheck,col_check):
     """
-    Função que retorna os índices dos registros em <df_check> cujas placas estiverem em <list_plates>.
+    Função que retorna os índices dos registros em <df_pcheck> cujas placas estiverem em <list_plates>.
     
+    Parâmetros:
     list_plates - lista com as placas de interesse
-    df_check - dataframe com as placas a serem pesquisadas. Deve-se observar que os registros deste dataframe serão removidos para otimizar a execução, logo deve-se enviar uma cópia do dataframe e não o original.
-    col_check - coluna a ser verificada referente à placa em< df_check>
+    df_pcheck - dataframe com as placas a serem pesquisadas.     
+    col_check - coluna a ser verificada referente à placa em<df_pcheck>
 
+    Retorno: lista com índice dos registros cujas placas estão em <list_plates>.
     """
+    #cópia para não impactar dataset original
+    df_check = df_pcheck.copy()
     idx_found, search_idx_plates = [],[]
     flag = False
     for l_plate in list_plates:
@@ -230,18 +243,11 @@ def mark_plate_origem(df):
     """
     Esta função registra em feature booleana se a placa é nacional (brasileira) - PLACA_BR = True
     
+    Parâmetro:
     df - dataframe em análise.
 
-    Formato placas:
-    ABC1234 BR antiga = UR atual
-    ABC123  PY antiga = AR
-    ABC123  AR antiga = PY
-        
-    VALIDAR PLACA CONFORME O PAÍS - 
-    #pat_obj = re.compile('^[A-Z]{3}[0-9]{4}$') # 'ABC1234'
-    #pat_obj = re.compile('^[A-Z]{3}\d\D[0-9]{2}$') # 'ABC1A23'
-    """
-    
+    Retorno: None.
+    """    
     #regex BR
     BR = '(^[A-Z]{3}[0-9]{4}$)|(^[A-Z]{3}\d\D[0-9]{2}$)' 
 
@@ -258,14 +264,17 @@ def mark_plate_origem(df):
             
 def plot_grafico1(len_plot, len_base,x_title, x_tit_plot):
     """
-    Exibe gráfico em barras com base nos valores dos parâmetros:
+    Exibe gráfico em barras com base nos valores dos parâmetros.
     
+    Parâmetros:
     len_plot    - tamanho do que se deseja plotar - numa lista
     len_base    - tamanho total da base, usado para cálculo relativo dos percentuais
     x_title     - título do gráfico
     x_tit_plot  - usado para identificação na parte inferior da barra - um para cada item de <len_plot>
 
-    plot_grafico1([30,45,30,40,50],len_base=100,x_title='MIC',x_tit_plot=['bar1','bar2','bar3','bar4','bar5'])    
+    Ex: plot_grafico1([30,45,30,40,50],len_base=100,x_title='MIC',x_tit_plot=['bar1','bar2','bar3','bar4','bar5'])    
+
+    Retorno: None.
     """
 
     if len(len_plot) == 1:
